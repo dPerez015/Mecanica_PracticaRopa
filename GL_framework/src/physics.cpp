@@ -35,50 +35,71 @@ namespace LilSpheres {
 	extern void drawParticles(int startIdx, int count);
 }
 namespace ClothMesh {
-	extern int numCols;
-	extern int numRows;
-	extern int numVerts;
+	extern const int numCols;
+	extern const int numRows;
+	extern const int numVerts;
 	extern void setupClothMesh();
 	extern void cleanupClothMesh();
 	extern void updateClothMesh(float* array_data);
 	extern void drawClothMesh();
 }
 
-struct MeshVertex {
-	//glm::vec3 position;
-
-};
+glm::vec3 gravity;
 
 struct Mesh {
 public:
 	Mesh() {
 		distVertex = 0.5f;
 		heightPos = 8;
-		//vertexArray = new MeshVertex[ClothMesh::numVerts];
-		vertexArray = new glm::vec3[ClothMesh::numVerts];
+		vertexPosArray = new glm::vec3[ClothMesh::numVerts];
+		vertexVelArray= new glm::vec3[ClothMesh::numVerts];
+		vertexLastPosArray= new glm::vec3[ClothMesh::numVerts];
+		vertexForceArray= new glm::vec3[ClothMesh::numVerts];
 
 		setPosInit();
 	}
 	void setPosInit() {
-		for (int i = 0; i < ClothMesh::numCols;i++) {
-			for (int j = 0; j < ClothMesh::numRows;j++) {
-				vertexArray[i*ClothMesh::numRows + j] = glm::vec3(i*distVertex - (distVertex*ClothMesh::numCols / 2), heightPos, j*distVertex - (distVertex*ClothMesh::numRows / 2));
-				//vertexArray[i*ClothMesh::numRows + j].position = glm::vec3(i*distVertex-(distVertex*ClothMesh::numCols/2),heightPos,j*distVertex-(distVertex*ClothMesh::numRows/2));
+		for (int i = 0; i < ClothMesh::numRows;i++) {
+			for (int j = 0; j < ClothMesh::numCols;j++) {
+				vertexPosArray[j+i*ClothMesh::numCols] = glm::vec3(j*distVertex - (distVertex*ClothMesh::numCols / 2), heightPos, i*distVertex - (distVertex*ClothMesh::numRows / 2));
+				vertexLastPosArray[j + i*ClothMesh::numCols]= glm::vec3(j*distVertex - (distVertex*ClothMesh::numCols / 2), heightPos, i*distVertex - (distVertex*ClothMesh::numRows / 2));
+				vertexVelArray[j + i*ClothMesh::numCols] = glm::vec3(0,0,0);
+				vertexForceArray[j + i*ClothMesh::numCols] = glm::vec3(0,0,0);
 			}
 		}
 	}
 	void update() {
-		for (int i = 0; i < ClothMesh::numCols; i++) {
-			for (int j = 0; j < ClothMesh::numRows;j++) {
-				vertexArray[i*ClothMesh::numRows + j] = ;
+		glm::vec3 lastPos;
+		glm::vec3 
+		for (int i = 1; i < ClothMesh::numVerts;i++) {
+			if (i!=ClothMesh::numCols-1) {//fijamos el segundo
+				lastPos = vertexPosArray[i];
+				//calculamos fuerza
+				#pragma region CalculoFuerza
+					//fuerzas externas
+					vertexForceArray[i] = gravity;
+					//fuerzas internas
+						//fuerzaStructural
+						vertexForceArray[i] += -(rigidez*);
+				#pragma endregion
+
+
+				//usamos solver para calcular posicion
+				//usamos solver para calcular velocidad
+				//guardamos posicion anterior
 			}
 		}
 	}
-	//MeshVertex* vertexArray;
-	glm::vec3* vertexArray;
+
+	glm::vec3* vertexPosArray;
+	glm::vec3* vertexVelArray;
+	glm::vec3* vertexForceArray;
+	glm::vec3* vertexLastPosArray;
 	float distVertex;
 	float heightPos;
 
+	float rigidez;
+	float kd;//resistencia a la velocidad
 };
 
 
@@ -97,8 +118,9 @@ void GUI() {
 }
 
 void PhysicsInit() {
+	gravity = glm::vec3(0,-9.81,0);
 	Mesh TheMesh;
-
+	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[0].x);
 	//ClothMesh::updateClothMesh();
 }
 void PhysicsUpdate(float dt) {
