@@ -45,7 +45,7 @@ namespace ClothMesh {
 }
 
 struct MeshVertex {
-	glm::vec3 position;
+	//glm::vec3 position;
 
 };
 
@@ -53,22 +53,31 @@ struct Mesh {
 public:
 	Mesh() {
 		distVertex = 0.5f;
-		vertexArray = new MeshVertex[ClothMesh::numVerts];
+		heightPos = 8;
+		//vertexArray = new MeshVertex[ClothMesh::numVerts];
+		vertexArray = new glm::vec3[ClothMesh::numVerts];
+
 		setPosInit();
 	}
 	void setPosInit() {
 		for (int i = 0; i < ClothMesh::numCols;i++) {
 			for (int j = 0; j < ClothMesh::numRows;j++) {
-				vertexArray[i*ClothMesh::numRows + j].position = glm::vec3(i*distVertex-(distVertex*ClothMesh::numCols/2),8,j*distVertex-(distVertex*ClothMesh::numRows/2));
+				vertexArray[i*ClothMesh::numRows + j] = glm::vec3(i*distVertex - (distVertex*ClothMesh::numCols / 2), heightPos, j*distVertex - (distVertex*ClothMesh::numRows / 2));
+				//vertexArray[i*ClothMesh::numRows + j].position = glm::vec3(i*distVertex-(distVertex*ClothMesh::numCols/2),heightPos,j*distVertex-(distVertex*ClothMesh::numRows/2));
 			}
-
-
 		}
-
 	}
-	MeshVertex* vertexArray;
+	void update() {
+		for (int i = 0; i < ClothMesh::numCols; i++) {
+			for (int j = 0; j < ClothMesh::numRows;j++) {
+				vertexArray[i*ClothMesh::numRows + j] = ;
+			}
+		}
+	}
+	//MeshVertex* vertexArray;
+	glm::vec3* vertexArray;
 	float distVertex;
-
+	float heightPos;
 
 };
 
@@ -88,11 +97,13 @@ void GUI() {
 }
 
 void PhysicsInit() {
-	//TODO
+	Mesh TheMesh;
 
+	//ClothMesh::updateClothMesh();
 }
 void PhysicsUpdate(float dt) {
 	//TODO
+
 }
 void PhysicsCleanup() {
 	//TODO
