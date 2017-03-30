@@ -725,8 +725,8 @@ GLuint clothVao;
 GLuint clothVbo[2];
 GLuint clothShaders[2];
 GLuint clothProgram;
-extern const int numCols = 14;
-extern const int numRows = 18;
+extern const int numCols = 3;
+extern const int numRows = 3;
 extern const int numVerts = numRows * numCols;
 int numVirtualVerts;
 
