@@ -52,14 +52,17 @@ struct Mesh {
 public:
 	Mesh() {
 		distVertex = 0.5f;
+		shearDist = sqrt(pow(distVertex, 2)*2);
+		flexionDist = distVertex * 2;
+
 		heightPos = 8;
 		vertexPosArray = new glm::vec3[ClothMesh::numVerts];
 		vertexVelArray= new glm::vec3[ClothMesh::numVerts];
 		vertexLastPosArray= new glm::vec3[ClothMesh::numVerts];
 		vertexForceArray= new glm::vec3[ClothMesh::numVerts];
 
-		rigidez = 7;
-		kd = 1;
+		rigidez = 500;
+		kd = 50;
 		setPosInit();
 	}
 	void setPosInit() {
@@ -74,50 +77,50 @@ public:
 		}
 	}
 
-	inline void addSpringForce(int i0, int i1) {
-		vertexForceArray[i0]-=(rigidez*(glm::distance(vertexPosArray[i0],vertexPosArray[i1])-distVertex) + glm::dot(kd*(vertexVelArray[i0]-vertexVelArray[i1]),glm::normalize(vertexPosArray[i0]-vertexPosArray[i1])))*glm::normalize(vertexPosArray[i0] - vertexPosArray[i1]);
+	inline void addSpringForce(int i0, int i1, float& dist) {
+		vertexForceArray[i0]-=(rigidez*(glm::distance(vertexPosArray[i0],vertexPosArray[i1])-dist) + glm::dot(kd*(vertexVelArray[i0]-vertexVelArray[i1]),glm::normalize(vertexPosArray[i0]-vertexPosArray[i1])))*glm::normalize(vertexPosArray[i0] - vertexPosArray[i1]);
 	}
 
 	void addStructuralForces( int &i) {
 		if (i + 1 < ClothMesh::numVerts && (i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
-			addSpringForce(i, i+1);
+			addSpringForce(i, i+1, distVertex);
 		}
 		if (i-1>=0 && (i-1)%ClothMesh::numCols!=ClothMesh::numCols-1) {//comprovamos que no haya vuelto atras
-			addSpringForce(i,i-1);
+			addSpringForce(i,i-1, distVertex);
 		}
 		if (i+ClothMesh::numCols<ClothMesh::numVerts) {
-			addSpringForce(i,i+ClothMesh::numCols);
+			addSpringForce(i,i+ClothMesh::numCols, distVertex);
 		}
 		if (i-ClothMesh::numCols>=0) {
-			addSpringForce(i,i-ClothMesh::numCols);
+			addSpringForce(i,i-ClothMesh::numCols, distVertex);
 		}
 	}
 	void addShearForces(int &i) {
 		if (i + ClothMesh::numCols + 1 < ClothMesh::numVerts && (i + ClothMesh::numCols + 1)%ClothMesh::numCols!=0 ) {
-			addSpringForce(i, i+ClothMesh::numCols+1);
+			addSpringForce(i, i+ClothMesh::numCols+1, shearDist);
 		}
 		if (i + ClothMesh::numCols - 1 < ClothMesh::numVerts && (i + ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols-1) {
-			addSpringForce(i,i+ClothMesh::numCols-1);
+			addSpringForce(i,i+ClothMesh::numCols-1, shearDist);
 		}
 		if (i-ClothMesh::numCols+1>0 && (i - ClothMesh::numCols + 1) % ClothMesh::numCols != 0) {
-			addSpringForce(i,i-ClothMesh::numCols+1);
+			addSpringForce(i,i-ClothMesh::numCols+1, shearDist);
 		}
 		if (i-ClothMesh::numCols-1>=0  && (i - ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols - 1) {
-			addSpringForce(i,i-ClothMesh::numCols-1);
+			addSpringForce(i,i-ClothMesh::numCols-1, shearDist);
 		}
 	}
 	void addFlexionForces(int &i) {
 		if (i+ (ClothMesh::numCols*2)<ClothMesh::numVerts) {
-			addSpringForce(i,i+(ClothMesh::numCols*2));
+			addSpringForce(i,i+(ClothMesh::numCols*2), flexionDist);
 		}
 		if (i-(ClothMesh::numCols*2)>=0) {
-			addSpringForce(i,i-(ClothMesh::numCols*2));
+			addSpringForce(i,i-(ClothMesh::numCols*2), flexionDist);
 		}
-		if (i+2<ClothMesh::numVerts	&&	((i+2)%ClothMesh::numCols!=0 || (i+2)%ClothMesh::numCols!=1)) {
-			addSpringForce(i,i+2);
+		if (i+2<ClothMesh::numVerts	&&	(i+2)%ClothMesh::numCols!=0 && (i+2)%ClothMesh::numCols!=1) {
+			addSpringForce(i,i+2, flexionDist);
 		}
-		if (i-2>=0 && ((i-2)%ClothMesh::numCols!=ClothMesh::numCols-1	|| (i - 2) % ClothMesh::numCols != ClothMesh::numCols - 2)) {
-			addSpringForce(i,i-2);
+		if (i-2>=0 && (i-2)%ClothMesh::numCols!=ClothMesh::numCols-1	&& (i - 2) % ClothMesh::numCols != ClothMesh::numCols - 2) {
+			addSpringForce(i,i-2, flexionDist);
 		}
 	}
 	
@@ -147,9 +150,10 @@ public:
 						addFlexionForces(i);
 				#pragma endregion
 
-
 				//usamos solver para calcular posicion
 					verletPositionSolver(i,dt);
+				//aplicamos los constrains
+
 				//guardamos posicion anterior
 					vertexLastPosArray[i] = lastPos;
 				//usamos solver para calcular velocidad
@@ -163,6 +167,8 @@ public:
 	glm::vec3* vertexForceArray;
 	glm::vec3* vertexLastPosArray;
 	float distVertex;
+	float shearDist;
+	float flexionDist;
 	float heightPos;
 
 	float rigidez;
@@ -185,7 +191,7 @@ void GUI() {
 }
 
 void PhysicsInit() {
-	numOfUpdates = 10;
+	numOfUpdates = 30;
 	gravity = glm::vec3(0,-9.81,0);
 	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[0].x);
 	//ClothMesh::updateClothMesh();
