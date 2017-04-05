@@ -82,57 +82,63 @@ public:
 	}
 
 	inline void addSpringForce(int i0, int i1, float& dist) {
-		vertexForceArray[(int)arrayToUse][i0]-=(rigidez*(glm::distance(vertexPosArray[(int)!arrayToUse][i0],vertexPosArray[(int)!arrayToUse][i1])-dist) + glm::dot(kd*(vertexVelArray[i0]-vertexVelArray[i1]),glm::normalize(vertexPosArray[(int)!arrayToUse][i0]-vertexPosArray[(int)!arrayToUse][i1])))*glm::normalize(vertexPosArray[(int)!arrayToUse][i0] - vertexPosArray[(int)!arrayToUse][i1]);
+		newForce= (rigidez*(glm::distance(vertexPosArray[!arrayToUse][i0], vertexPosArray[!arrayToUse][i1]) - dist) + glm::dot(kd*(vertexVelArray[i0] - vertexVelArray[i1]), glm::normalize(vertexPosArray[!arrayToUse][i0] - vertexPosArray[!arrayToUse][i1])))*glm::normalize(vertexPosArray[!arrayToUse][i0] - vertexPosArray[!arrayToUse][i1]);
+		vertexForceArray[i0] -= newForce;
+		vertexForceArray[i1] += newForce;
 	}
 
 	void addStructuralForces( int &i) {
 		if (i + 1 < ClothMesh::numVerts && (i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
 			addSpringForce(i, i+1, distVertex);
 		}
-		if (i-1>=0 && (i-1)%ClothMesh::numCols!=ClothMesh::numCols-1) {//comprovamos que no haya vuelto atras
+		/*if (i-1>=0 && (i-1)%ClothMesh::numCols!=ClothMesh::numCols-1) {//comprovamos que no haya vuelto atras
 			addSpringForce(i,i-1, distVertex);
-		}
+		}*/
 		if (i+ClothMesh::numCols<ClothMesh::numVerts) {
 			addSpringForce(i,i+ClothMesh::numCols, distVertex);
 		}
+		/*
 		if (i-ClothMesh::numCols>=0) {
 			addSpringForce(i,i-ClothMesh::numCols, distVertex);
-		}
+		}*/
 	}
 	void addShearForces(int &i) {
 		if (i + ClothMesh::numCols + 1 < ClothMesh::numVerts && (i + ClothMesh::numCols + 1)%ClothMesh::numCols!=0 ) {
 			addSpringForce(i, i+ClothMesh::numCols+1, shearDist);
 		}
+		/*
 		if (i + ClothMesh::numCols - 1 < ClothMesh::numVerts && (i + ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols-1) {
 			addSpringForce(i,i+ClothMesh::numCols-1, shearDist);
-		}
+		}*/
 		if (i-ClothMesh::numCols+1>0 && (i - ClothMesh::numCols + 1) % ClothMesh::numCols != 0) {
 			addSpringForce(i,i-ClothMesh::numCols+1, shearDist);
 		}
+		/*
 		if (i-ClothMesh::numCols-1>=0  && (i - ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols - 1) {
 			addSpringForce(i,i-ClothMesh::numCols-1, shearDist);
-		}
+		}*/
 	}
 	void addFlexionForces(int &i) {
 		if (i+ (ClothMesh::numCols*2)<ClothMesh::numVerts) {
 			addSpringForce(i,i+(ClothMesh::numCols*2), flexionDist);
-		}
+		}/*
 		if (i-(ClothMesh::numCols*2)>=0) {
 			addSpringForce(i,i-(ClothMesh::numCols*2), flexionDist);
-		}
+		}*/
 		if (i+2<ClothMesh::numVerts	&&	(i+2)%ClothMesh::numCols!=0 && (i+2)%ClothMesh::numCols!=1) {
 			addSpringForce(i,i+2, flexionDist);
 		}
+		/*
 		if (i-2>=0 && (i-2)%ClothMesh::numCols!=ClothMesh::numCols-1	&& (i - 2) % ClothMesh::numCols != ClothMesh::numCols - 2) {
 			addSpringForce(i,i-2, flexionDist);
-		}
+		}*/
 	}
 	
 	inline void verletPositionSolver(int &i, float& dt) {
-		vertexPosArray[i] = vertexPosArray[i]+(vertexPosArray[i]-vertexLastPosArray[i])+vertexForceArray[i]*pow(dt,2);
+		vertexPosArray[arrayToUse][i] = vertexPosArray[!arrayToUse][i]+(vertexPosArray[!arrayToUse][i]-vertexLastPosArray[i])+vertexForceArray[i]*pow(dt,2);
 	}
 	inline void verletVelSolver(int& i, float& dt) {
-		vertexVelArray[i] = (vertexPosArray[i] - vertexLastPosArray[i]) / dt;
+		vertexVelArray[i] = (vertexPosArray[arrayToUse][i] - vertexLastPosArray[i]) / dt;
 	}
 
 	void update(float dt) {
@@ -164,6 +170,11 @@ public:
 					verletVelSolver(i, dt);
 			}
 		}
+		swapBuffers();
+	}
+
+	inline void swapBuffers() {
+		arrayToUse = !arrayToUse;
 	}
 
 	glm::vec3** vertexPosArray;
@@ -175,6 +186,8 @@ public:
 	float shearDist;
 	float flexionDist;
 	float heightPos;
+	//variable para la suma de fuerzas
+	glm::vec3 newForce;
 
 	float rigidez;
 	float kd;//resistencia a la velocidad
@@ -198,7 +211,7 @@ void GUI() {
 void PhysicsInit() {
 	numOfUpdates = 30;
 	gravity = glm::vec3(0,-9.81,0);
-	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[0].x);
+	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[TheMesh.arrayToUse][0].x);
 	//ClothMesh::updateClothMesh();
 }
 void PhysicsUpdate(float dt) {
@@ -208,7 +221,7 @@ void PhysicsUpdate(float dt) {
 		TheMesh.update(dt/numOfUpdates);
 	}
 
-	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[0].x);
+	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[!TheMesh.arrayToUse][0].x);
 
 }
 void PhysicsCleanup() {
