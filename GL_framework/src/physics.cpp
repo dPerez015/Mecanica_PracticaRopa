@@ -51,7 +51,7 @@ int numOfUpdates;
 struct Mesh {
 public:
 	Mesh() {
-		distVertex = 0.5f;
+		distVertex = 0.3f;
 		shearDist = sqrt(pow(distVertex, 2)*2);
 		flexionDist = distVertex * 2;
 
@@ -87,8 +87,8 @@ public:
 		vertexForceArray[i1] += newForce;
 	}
 
-	void addStructuralForces( int &i) {
-		if (i + 1 < ClothMesh::numVerts && (i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
+	void addStructuralForces(const int &i) {
+		if (/*i + 1 < ClothMesh::numVerts &&*/ (i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
 			addSpringForce(i, i+1, distVertex);
 		}
 		/*if (i-1>=0 && (i-1)%ClothMesh::numCols!=ClothMesh::numCols-1) {//comprovamos que no haya vuelto atras
@@ -102,30 +102,30 @@ public:
 			addSpringForce(i,i-ClothMesh::numCols, distVertex);
 		}*/
 	}
-	void addShearForces(int &i) {
+	void addShearForces(const int &i) {
 		if (i + ClothMesh::numCols + 1 < ClothMesh::numVerts && (i + ClothMesh::numCols + 1)%ClothMesh::numCols!=0 ) {
 			addSpringForce(i, i+ClothMesh::numCols+1, shearDist);
-		}
-		/*
+		}	
 		if (i + ClothMesh::numCols - 1 < ClothMesh::numVerts && (i + ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols-1) {
 			addSpringForce(i,i+ClothMesh::numCols-1, shearDist);
-		}*/
+		}
+		/*
 		if (i-ClothMesh::numCols+1>0 && (i - ClothMesh::numCols + 1) % ClothMesh::numCols != 0) {
 			addSpringForce(i,i-ClothMesh::numCols+1, shearDist);
 		}
-		/*
+		
 		if (i-ClothMesh::numCols-1>=0  && (i - ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols - 1) {
 			addSpringForce(i,i-ClothMesh::numCols-1, shearDist);
 		}*/
 	}
-	void addFlexionForces(int &i) {
+	void addFlexionForces(const int &i) {
 		if (i+ (ClothMesh::numCols*2)<ClothMesh::numVerts) {
 			addSpringForce(i,i+(ClothMesh::numCols*2), flexionDist);
 		}/*
 		if (i-(ClothMesh::numCols*2)>=0) {
 			addSpringForce(i,i-(ClothMesh::numCols*2), flexionDist);
 		}*/
-		if (i+2<ClothMesh::numVerts	&&	(i+2)%ClothMesh::numCols!=0 && (i+2)%ClothMesh::numCols!=1) {
+		if (/*i+2<ClothMesh::numVerts	&&*/	(i+2)%ClothMesh::numCols!=0 && (i+2)%ClothMesh::numCols!=1) {
 			addSpringForce(i,i+2, flexionDist);
 		}
 		/*
@@ -137,20 +137,33 @@ public:
 	inline void verletPositionSolver(int &i, float& dt) {
 		vertexPosArray[arrayToUse][i] = vertexPosArray[!arrayToUse][i]+(vertexPosArray[!arrayToUse][i]-vertexLastPosArray[i])+vertexForceArray[i]*pow(dt,2);
 	}
-	inline void verletVelSolver(int& i, float& dt) {
+	inline void verletVelSolver( int& i, float& dt) {
 		vertexVelArray[i] = (vertexPosArray[arrayToUse][i] - vertexLastPosArray[i]) / dt;
+	}
+
+	void applyConstrain(int& i) {
+		
+	}
+	void checkConstrains(int &i) {
+		if (i - ClothMesh::numCols >= 0) {
+			vertexPosArray[arrayToUse][i] =
+		}
 	}
 
 	void update(float dt) {
 		glm::vec3 lastPos;
-		
 		for (int i = 1; i < ClothMesh::numVerts;i++) {
-			if (i!=ClothMesh::numCols-1) {//fijamos el segundo punto fijo
+			//vertexForceArray[i] = glm::vec3(0, 0, 0);
+			vertexForceArray[i] = gravity;
+		}
+
+		for (int i = 0; i < ClothMesh::numVerts;i++) {
+			//fijamos el segundo punto fijo
 				lastPos = vertexPosArray[!arrayToUse][i];
 				//calculamos fuerza
 				#pragma region CalculoFuerza
 					//fuerzas externas
-					vertexForceArray[i] = gravity;
+					//vertexForceArray[i] += gravity;
 					//fuerzas internas
 						//fuerzaStructural
 						addStructuralForces(i);
@@ -161,15 +174,18 @@ public:
 				#pragma endregion
 
 				//usamos solver para calcular posicion
-					verletPositionSolver(i,dt);
-				//aplicamos los constrains
-
+				if (i != ClothMesh::numCols - 1 && i != 0) {
+						verletPositionSolver(i, dt);
+					}
 				//guardamos posicion anterior
 					vertexLastPosArray[i] = lastPos;
 				//usamos solver para calcular velocidad
 					verletVelSolver(i, dt);
-			}
+			
 		}
+		//aplicamos los contrains
+
+		//cambiamos los buffers
 		swapBuffers();
 	}
 
