@@ -54,6 +54,7 @@ public:
 		distVertex = 0.3f;
 		shearDist = sqrt(pow(distVertex, 2)*2);
 		flexionDist = distVertex * 2;
+		maxDist = distVertex*1.3;
 
 		heightPos = 8;
 		vertexPosArray= new glm::vec3*[2];
@@ -65,8 +66,8 @@ public:
 		vertexLastPosArray= new glm::vec3[ClothMesh::numVerts];
 		vertexForceArray= new glm::vec3[ClothMesh::numVerts];
 
-		rigidez = 500;
-		kd = 50;
+		rigidez = 1000;
+		kd = 70;
 		setPosInit();
 	}
 	void setPosInit() {
@@ -141,13 +142,28 @@ public:
 		vertexVelArray[i] = (vertexPosArray[arrayToUse][i] - vertexLastPosArray[i]) / dt;
 	}
 
-	void applyConstrain(int& i) {
+	inline void applyConstrain(int& i0) {
+		vertexPosArray[arrayToUse][i0] -= glm::normalize(constrainVertVertVector)*(constrainCurrentDist-maxDist);
 		
 	}
 	void checkConstrains(int &i) {
 		if (i - ClothMesh::numCols >= 0) {
-			vertexPosArray[arrayToUse][i] =
+			constrainVertVertVector = vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i - ClothMesh::numCols];
+			constrainCurrentDist = glm::length(constrainVertVertVector);
+			if (constrainCurrentDist>maxDist) {
+				applyConstrain(i);
+				constrainCurrentDist = glm::length(vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i - ClothMesh::numCols]);
+			}	
 		}
+		if (i - 1 >= 0 && i%ClothMesh::numCols!=0) {
+			constrainVertVertVector = vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i - 1];
+			constrainCurrentDist = glm::length(constrainVertVertVector);
+			if (constrainCurrentDist>maxDist) {
+				applyConstrain(i);
+				constrainCurrentDist = glm::length(vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i-1]);
+			}
+		}
+
 	}
 
 	void update(float dt) {
@@ -184,7 +200,11 @@ public:
 			
 		}
 		//aplicamos los contrains
-
+		for (int i =1 ; i < ClothMesh::numVerts;i++) {
+			if (i != ClothMesh::numCols - 1) {
+				checkConstrains(i);
+			}
+		}
 		//cambiamos los buffers
 		swapBuffers();
 	}
@@ -201,9 +221,16 @@ public:
 	float distVertex;
 	float shearDist;
 	float flexionDist;
+	float maxDist;
+
 	float heightPos;
-	//variable para la suma de fuerzas
-	glm::vec3 newForce;
+
+
+	//variables de optimizacion
+	glm::vec3 newForce;//variable para la suma de fuerzas
+	glm::vec3 constrainVertVertVector;
+	float constrainCurrentDist;
+	
 
 	float rigidez;
 	float kd;//resistencia a la velocidad
