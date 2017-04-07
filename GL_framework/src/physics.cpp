@@ -6,6 +6,14 @@
 #include <glm\gtc\constants.hpp>
 #include <glm/gtx/norm.hpp>
 
+#define MURO1 1
+#define MURO2 2
+#define MURO3 4
+#define MURO4 8
+#define MURO5 16
+#define MURO6 32
+#define ESFERA 64
+
 
 bool show_test_window = false;
 
@@ -47,14 +55,28 @@ namespace ClothMesh {
 glm::vec3 gravity;
 int numOfUpdates;
 
+//planos
+glm::vec3 lowPlaneNormal(0, 1, 0);
+glm::vec3 upperPlaneNormal(0, -1, 0);
+glm::vec3 rightPlaneNormal(-1, 0, 0);
+glm::vec3 leftPlaneNormal(1, 0, 0);
+glm::vec3 frontPlaneNormal(0, 0, 1);
+glm::vec3 backPlaneNormal(0, 0, -1);
+float lowPlaneD = 0;
+float upperPlaneD = 10;
+float rightPlaneD = 5;
+float leftPlaneD = 5;
+float frontPlaneD = 5;
+float backPlaneD = 5;
 
 struct Mesh {
 public:
+	//constructor, destructor y inicializacion
 	Mesh() {
 		distVertex = 0.3f;
 		shearDist = sqrt(pow(distVertex, 2)*2);
 		flexionDist = distVertex * 2;
-		maxDist = distVertex*1.3;
+		maxDist = distVertex*1.20;
 
 		heightPos = 8;
 		vertexPosArray= new glm::vec3*[2];
@@ -67,8 +89,15 @@ public:
 		vertexForceArray= new glm::vec3[ClothMesh::numVerts];
 
 		rigidez = 1000;
-		kd = 70;
+		kd = 30;
 		setPosInit();
+	}
+	~Mesh() {
+		delete[] vertexPosArray[0];
+		delete[] vertexPosArray[1];
+		delete[] vertexVelArray;
+		delete[] vertexLastPosArray;
+		delete[] vertexForceArray;
 	}
 	void setPosInit() {
 		for (int i = 0; i < ClothMesh::numRows;i++) {
@@ -81,13 +110,13 @@ public:
 			}
 		}
 	}
-
+	
+	//fuerzas
 	inline void addSpringForce(int i0, int i1, float& dist) {
 		newForce= (rigidez*(glm::distance(vertexPosArray[!arrayToUse][i0], vertexPosArray[!arrayToUse][i1]) - dist) + glm::dot(kd*(vertexVelArray[i0] - vertexVelArray[i1]), glm::normalize(vertexPosArray[!arrayToUse][i0] - vertexPosArray[!arrayToUse][i1])))*glm::normalize(vertexPosArray[!arrayToUse][i0] - vertexPosArray[!arrayToUse][i1]);
 		vertexForceArray[i0] -= newForce;
 		vertexForceArray[i1] += newForce;
 	}
-
 	void addStructuralForces(const int &i) {
 		if (/*i + 1 < ClothMesh::numVerts &&*/ (i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
 			addSpringForce(i, i+1, distVertex);
@@ -135,16 +164,17 @@ public:
 		}*/
 	}
 	
+	//solver
 	inline void verletPositionSolver(int &i, float& dt) {
 		vertexPosArray[arrayToUse][i] = vertexPosArray[!arrayToUse][i]+(vertexPosArray[!arrayToUse][i]-vertexLastPosArray[i])+vertexForceArray[i]*pow(dt,2);
 	}
 	inline void verletVelSolver( int& i, float& dt) {
 		vertexVelArray[i] = (vertexPosArray[arrayToUse][i] - vertexLastPosArray[i]) / dt;
 	}
-
+	
+	//constrains
 	inline void applyConstrain(int& i0) {
 		vertexPosArray[arrayToUse][i0] -= glm::normalize(constrainVertVertVector)*(constrainCurrentDist-maxDist);
-		
 	}
 	void checkConstrains(int &i) {
 		if (i - ClothMesh::numCols >= 0) {
@@ -164,6 +194,15 @@ public:
 			}
 		}
 
+	}
+	
+	//colisions
+	void wallColision(int& i, glm::vec3& planeNormal,float& d) {
+		
+	}
+
+	void checkColision(int& i) {
+		
 	}
 
 	void update(float dt) {
@@ -199,12 +238,18 @@ public:
 					verletVelSolver(i, dt);
 			
 		}
+		//aplicamos colisiones
+
+
+
 		//aplicamos los contrains
 		for (int i =1 ; i < ClothMesh::numVerts;i++) {
 			if (i != ClothMesh::numCols - 1) {
 				checkConstrains(i);
 			}
 		}
+
+
 		//cambiamos los buffers
 		swapBuffers();
 	}
@@ -213,16 +258,21 @@ public:
 		arrayToUse = !arrayToUse;
 	}
 
+	//arrays de datos de vertices
 	glm::vec3** vertexPosArray;
 	bool arrayToUse;
 	glm::vec3* vertexVelArray;
 	glm::vec3* vertexForceArray;
 	glm::vec3* vertexLastPosArray;
+	unsigned char* vertexColisionCheckers;
+
+	//distancias
 	float distVertex;
 	float shearDist;
 	float flexionDist;
 	float maxDist;
 
+	//altura original de la malla
 	float heightPos;
 
 
@@ -230,7 +280,7 @@ public:
 	glm::vec3 newForce;//variable para la suma de fuerzas
 	glm::vec3 constrainVertVertVector;
 	float constrainCurrentDist;
-	
+	unsigned char colisionNewRelDist;
 
 	float rigidez;
 	float kd;//resistencia a la velocidad
@@ -252,7 +302,7 @@ void GUI() {
 }
 
 void PhysicsInit() {
-	numOfUpdates = 30;
+	numOfUpdates = 10;
 	gravity = glm::vec3(0,-9.81,0);
 	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[TheMesh.arrayToUse][0].x);
 	//ClothMesh::updateClothMesh();
