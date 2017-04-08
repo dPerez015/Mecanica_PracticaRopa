@@ -197,12 +197,19 @@ public:
 	}
 	
 	//colisions
-	void wallColision(int& i, glm::vec3& planeNormal,float& d) {
+	void wallColision(int& i, glm::vec3& planeNormal,float& d, int numMuro) {
 		
 	}
 
 	void checkColision(int& i) {
-		
+		//colisiones con los muros
+		wallColision(i,lowPlaneNormal,lowPlaneD, MURO1);
+		wallColision(i, upperPlaneNormal, upperPlaneD, MURO2);
+		wallColision(i, rightPlaneNormal, rightPlaneD, MURO3);
+		wallColision(i, leftPlaneNormal, leftPlaneD, MURO4);
+		wallColision(i, frontPlaneNormal, frontPlaneD, MURO5);
+		wallColision(i, backPlaneNormal, backPlaneD, MURO6);
+		//colision con la esfera	
 	}
 
 	void update(float dt) {
