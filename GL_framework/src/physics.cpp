@@ -87,6 +87,8 @@ public:
 		maxDistx100 = 20;
 		maxDist = distVertex*(1+(maxDistx100/100));
 
+		numConstrainRep = 5;
+
 		heightPos = 8;
 		vertexPosArray= new glm::vec3*[2];
 		vertexPosArray[0] = new glm::vec3[ClothMesh::numVerts];
@@ -187,21 +189,30 @@ public:
 	inline void applyConstrain(int& i0) {
 		vertexPosArray[arrayToUse][i0] -= glm::normalize(constrainVertVertVector)*(constrainCurrentDist-maxDist);
 	}
+	inline void applyConstrain(int& i0, int i1) {
+		vertexPosArray[arrayToUse][i0] -= glm::normalize(constrainVertVertVector)*((constrainCurrentDist - maxDist)/2);
+		vertexPosArray[arrayToUse][i1] += glm::normalize(constrainVertVertVector)*((constrainCurrentDist - maxDist)/2);
+
+	}
 	void checkConstrains(int &i) {
 		if (i - ClothMesh::numCols >= 0) {
 			constrainVertVertVector = vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i - ClothMesh::numCols];
 			constrainCurrentDist = glm::length(constrainVertVertVector);
-			if (constrainCurrentDist>maxDist) {
-				applyConstrain(i);
-				constrainCurrentDist = glm::length(vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i - ClothMesh::numCols]);
+			if (constrainCurrentDist>maxDist && i-ClothMesh::numCols!=0 && i - ClothMesh::numCols != ClothMesh::numCols-1) {
+				applyConstrain(i, i - ClothMesh::numCols);
 			}	
+			else if(constrainCurrentDist>maxDist){
+				applyConstrain(i);
+			}
 		}
 		if (i - 1 >= 0 && i%ClothMesh::numCols!=0) {
 			constrainVertVertVector = vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i - 1];
 			constrainCurrentDist = glm::length(constrainVertVertVector);
-			if (constrainCurrentDist>maxDist) {
+			if (constrainCurrentDist > maxDist && (i - 1) != 0 && (i - 1) != ClothMesh::numCols) {
+				applyConstrain(i, i - 1);
+				}
+			else if(constrainCurrentDist > maxDist){
 				applyConstrain(i);
-				constrainCurrentDist = glm::length(vertexPosArray[arrayToUse][i] - vertexPosArray[arrayToUse][i-1]);
 			}
 		}
 
@@ -318,9 +329,11 @@ public:
 			checkColisions(i);
 		}
 		//aplicamos los contrains
-		for (int i =1 ; i < ClothMesh::numVerts;i++) {
-			if (i != ClothMesh::numCols - 1) {
-				checkConstrains(i);
+		for (int j = 0; j < numConstrainRep; j++) {
+			for (int i = 1; i < ClothMesh::numVerts; i++) {
+				if (i != ClothMesh::numCols - 1) {
+					checkConstrains(i);
+				}
 			}
 		}
 		//cambiamos los buffers
@@ -346,7 +359,8 @@ public:
 	float flexionDist;
 	float maxDistx100;
 	float maxDist;
-
+	//numero de repeticiones de los contrains
+	int numConstrainRep;
 
 	//altura original de la malla
 	float heightPos;
@@ -383,8 +397,8 @@ float demoModeMaxTime = 3;
 float demoModeTime = 0;
 
 void randomSpherePos() {
-	SpherePos.x = ((float)rand() / RAND_MAX) * 4;
-	SpherePos.y = ((float)rand() / RAND_MAX) * 5;
+	SpherePos.x = ((float)rand() / RAND_MAX) * 8-3;
+	SpherePos.y = ((float)rand() / RAND_MAX) * 7;
 	SpherePos.z = ((float)rand() / RAND_MAX) * 8 - 4;
 
 	SphereRadius = ((float)rand() / RAND_MAX)*0.5 + TheMesh.maxDist;
@@ -412,11 +426,15 @@ void GUI() {
 		else {
 			ImGui::DragFloat("Demo Mode Time",&demoModeMaxTime, 0.1,1,10);
 		}
-		ImGui::DragInt("Num of update Repeats per frame", &numOfUpdates,1, 5,30);
+		ImGui::DragInt("Num of updates per frame", &numOfUpdates,1, 5,30);
+		ImGui::DragInt("Num of constrain checks",&TheMesh.numConstrainRep, 1, 5,15);
+
+		ImGui::DragFloat("Vertex Elasticity Coef", &elasticCoef,0.01, 0.01,1);
+		ImGui::DragFloat("Vertex Friction Coef", &frictCoef, 0.01,0.01,1);
 
 		ImGui::Text("\n");
-		ImGui::DragFloat("Accepted Elongation %", &TheMesh.maxDistx100, 0.5, 20, 100);
-		ImGui::DragFloat("Initial Distance", &TheMesh.distVertex, 0.01, 0.2, 0.6);
+		ImGui::DragFloat("Accepted Elongation %", &TheMesh.maxDistx100, 0.5, 5, 100);
+		ImGui::DragFloat("Initial Distance", &TheMesh.distVertex, 0.01, 0.1, 0.6);
 
 		ImGui::Text("\n");
 		ImGui::DragFloat("Constant Direct-Link springs", &TheMesh.rigidezStrench,10,200,2000);
@@ -437,7 +455,6 @@ void GUI() {
 	if(show_test_window) {
 		ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiSetCond_FirstUseEver);
 		ImGui::ShowTestWindow(&show_test_window);
-		
 	}
 }
 
