@@ -53,7 +53,14 @@ namespace ClothMesh {
 }
 
 glm::vec3 gravity;
+float elasticCoef;
+float frictCoef;
+
 int numOfUpdates;
+
+//Esfera
+float SphereRadius;
+glm::vec3 SpherePos;
 
 //planos
 glm::vec3 lowPlaneNormal(0, 1, 0);
@@ -73,7 +80,7 @@ struct Mesh {
 public:
 	//constructor, destructor y inicializacion
 	Mesh() {
-		distVertex = 0.3f;
+		distVertex = 0.5f;
 		shearDist = sqrt(pow(distVertex, 2)*2);
 		flexionDist = distVertex * 2;
 		maxDist = distVertex*1.20;
@@ -87,10 +94,12 @@ public:
 		vertexVelArray= new glm::vec3[ClothMesh::numVerts];
 		vertexLastPosArray= new glm::vec3[ClothMesh::numVerts];
 		vertexForceArray= new glm::vec3[ClothMesh::numVerts];
+		vertexColisionCheckers = new unsigned char[ClothMesh::numVerts];
 
 		rigidez = 1000;
 		kd = 30;
 		setPosInit();
+		setDistancesCol();
 	}
 	~Mesh() {
 		delete[] vertexPosArray[0];
@@ -107,7 +116,19 @@ public:
 				vertexLastPosArray[j + i*ClothMesh::numCols] = glm::vec3(i*distVertex - (distVertex*ClothMesh::numRows / 2), heightPos, j*distVertex - (distVertex*ClothMesh::numCols / 2));
 				vertexVelArray[j + i*ClothMesh::numCols] = glm::vec3(0,0,0);
 				vertexForceArray[j + i*ClothMesh::numCols] = glm::vec3(0,0,0);
+				vertexColisionCheckers[j + i*ClothMesh::numCols] = 0;
 			}
+		}
+	}
+	void setDistancesCol() {
+		//posiciones relativas a los planos i esfera
+		for (int i = 0; i <= ClothMesh::numVerts; i++) {
+			vertexColisionCheckers[i] = vertexColisionCheckers[i] | (wallDistance(i, lowPlaneNormal, lowPlaneD)*MURO1);
+			vertexColisionCheckers[i] = vertexColisionCheckers[i] | (wallDistance(i, upperPlaneNormal, upperPlaneD)*MURO2);
+			vertexColisionCheckers[i] = vertexColisionCheckers[i] | (wallDistance(i, rightPlaneNormal, rightPlaneD)*MURO3);
+			vertexColisionCheckers[i] = vertexColisionCheckers[i] | (wallDistance(i, leftPlaneNormal, leftPlaneD)*MURO4);
+			vertexColisionCheckers[i] = vertexColisionCheckers[i] | (wallDistance(i, frontPlaneNormal, frontPlaneD)*MURO5);
+			vertexColisionCheckers[i] = vertexColisionCheckers[i] | (wallDistance(i, backPlaneNormal, backPlaneD)*MURO6);
 		}
 	}
 	
@@ -197,11 +218,65 @@ public:
 	}
 	
 	//colisions
+	void mirrorPosition(int& i, glm::vec3& planeNormal, float&d) {
+		vertexPosArray[arrayToUse][i] = vertexPosArray[arrayToUse][i] - (1 + elasticCoef)*(glm::dot(vertexPosArray[arrayToUse][i], planeNormal) + d)*planeNormal;
+		vertexLastPosArray[i] = vertexLastPosArray[i] - (1 + elasticCoef)*(glm::dot(vertexLastPosArray[i], planeNormal) + d)*planeNormal;
+	}
+	void mirrorVelocity(int& i, glm::vec3& planeNormal) {
+		vertexVelArray[i] = vertexVelArray[i] - (1 + elasticCoef)*(glm::dot(planeNormal, vertexVelArray[i]))*planeNormal;
+		vertexVelArray[i] = vertexVelArray[i] - frictCoef*(vertexVelArray[i] - glm::dot(planeNormal, vertexVelArray[i])*planeNormal);
+	}
+
+	bool wallDistance(int i, glm::vec3& planeNormal, float& planeD) { 
+		if (glm::dot(vertexPosArray[arrayToUse][i], planeNormal) + planeD >= 0) {
+			return 1;
+		}
+		else {
+			return 0;
+		}
+	}	
 	void wallColision(int& i, glm::vec3& planeNormal,float& d, int numMuro) {
+		if (wallDistance(i, planeNormal, d)*numMuro != (vertexColisionCheckers[i] & numMuro)) {
+			mirrorPosition(i, planeNormal, d);
+			mirrorVelocity(i,planeNormal);
+		}
+	}
+
+
+	void findCollPoint(int& i) {
+		//buscamos el vector director que forman la pos anterior y la nueva
+		sphereLast2NewVect = vertexLastPosArray[i] - vertexPosArray[arrayToUse][i];
+
+		//hacemos una recta usando ese vector y calculamos sus colisiones con la esfera
+		sphereA = pow(sphereLast2NewVect.x, 2) + pow(sphereLast2NewVect.y, 2) + pow(sphereLast2NewVect.z, 2);
+		sphereB = 2 * ((sphereLast2NewVect.x*(vertexPosArray[arrayToUse][i].x - SpherePos.x)) + (sphereLast2NewVect.y*(vertexPosArray[arrayToUse][i].y - SpherePos.y)) + (sphereLast2NewVect.z*(vertexPosArray[arrayToUse][i].z - SpherePos.z)));
+		sphereC = pow(SpherePos.x, 2) + pow(SpherePos.y, 2) + pow(SpherePos.z, 2) + pow(vertexPosArray[arrayToUse][i].x, 2) + pow(vertexPosArray[arrayToUse][i].y, 2) + pow(vertexPosArray[arrayToUse][i].z, 2) - 2 * ((SpherePos.x*vertexPosArray[arrayToUse][i].x) + (SpherePos.y*vertexPosArray[arrayToUse][i].y) + (SpherePos.z*vertexPosArray[arrayToUse][i].z) - pow(SphereRadius, 2));
+		sphereLambda = (-sphereB + sqrt(pow(sphereB, 2) - (4 * sphereA*sphereC))) / (2 * sphereA);
+
+		sphereRealColPoint.x = vertexPosArray[arrayToUse][i].x + sphereLambda*sphereLast2NewVect.x;
+		sphereRealColPoint.y = vertexPosArray[arrayToUse][i].y + sphereLambda*sphereLast2NewVect.y;
+		sphereRealColPoint.z = vertexPosArray[arrayToUse][i].z + sphereLambda*sphereLast2NewVect.z;
+	}
+	void mirrorSphere(int &i) {
+		//encontramos el punto real de colision
+		findCollPoint(i);
+		spherePlaneNormal = SpherePos - sphereRealColPoint;
+		//hacemos la normal unitaria
+		spherePlaneNormal = glm::normalize(spherePlaneNormal);
+		//calculamos la D del plano de colision
+		spherePlaneD = -spherePlaneNormal.x*sphereRealColPoint.x - spherePlaneNormal.y*sphereRealColPoint.y + spherePlaneNormal.z*sphereRealColPoint.z;
+		mirrorPosition(i, spherePlaneNormal, spherePlaneD);
+		mirrorVelocity(i,spherePlaneNormal);
 		
 	}
 
-	void checkColision(int& i) {
+	void sphereColision(int &i) {
+		if (glm::distance(vertexPosArray[arrayToUse][i],SpherePos)-SphereRadius<0) {
+			mirrorSphere(i);
+		}
+	}
+
+	void checkColisions(int& i) {
 		//colisiones con los muros
 		wallColision(i,lowPlaneNormal,lowPlaneD, MURO1);
 		wallColision(i, upperPlaneNormal, upperPlaneD, MURO2);
@@ -210,6 +285,8 @@ public:
 		wallColision(i, frontPlaneNormal, frontPlaneD, MURO5);
 		wallColision(i, backPlaneNormal, backPlaneD, MURO6);
 		//colision con la esfera	
+		sphereColision(i);
+
 	}
 
 	void update(float dt) {
@@ -243,11 +320,12 @@ public:
 					vertexLastPosArray[i] = lastPos;
 				//usamos solver para calcular velocidad
 					verletVelSolver(i, dt);
-			
+				
 		}
 		//aplicamos colisiones
-
-
+		for (int i = 1; i < ClothMesh::numVerts;i++) {
+			checkColisions(i);
+		}
 
 		//aplicamos los contrains
 		for (int i =1 ; i < ClothMesh::numVerts;i++) {
@@ -282,12 +360,19 @@ public:
 	//altura original de la malla
 	float heightPos;
 
-
 	//variables de optimizacion
 	glm::vec3 newForce;//variable para la suma de fuerzas
 	glm::vec3 constrainVertVertVector;
 	float constrainCurrentDist;
-	unsigned char colisionNewRelDist;
+	
+	glm::vec3 sphereLast2NewVect;
+	glm::vec3 sphereRealColPoint;
+	glm::vec3 spherePlaneNormal;
+	float spherePlaneD;
+	float sphereA;
+	float sphereB;
+	float sphereC;
+	float sphereLambda;
 
 	float rigidez;
 	float kd;//resistencia a la velocidad
@@ -311,6 +396,12 @@ void GUI() {
 void PhysicsInit() {
 	numOfUpdates = 10;
 	gravity = glm::vec3(0,-9.81,0);
+	elasticCoef = 0.1;
+	frictCoef = 0.9;
+
+	SpherePos = glm::vec3(0, 1, 0);
+	SphereRadius = 1;
+
 	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[TheMesh.arrayToUse][0].x);
 	//ClothMesh::updateClothMesh();
 }
