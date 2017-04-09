@@ -389,7 +389,7 @@ void randomSpherePos() {
 
 	SphereRadius = ((float)rand() / RAND_MAX)*0.5 + TheMesh.maxDist;
 
-	Sphere::updateSphere(SpherePos, SphereRadius);
+	Sphere::updateSphere(SpherePos, SphereRadius - 0.01);
 }
 
 void GUI() {
@@ -428,7 +428,7 @@ void GUI() {
 		ImGui::DragFloat("Damping Diagonal-Link springs", &TheMesh.kdShear, 0.5, 20, 70);
 		ImGui::DragFloat("Damping Second-Link springs", &TheMesh.kdBend, 0.5, 20, 70);
 		if (!demoMode) {
-			ImGui::DragFloat3("Sphere Position", &SpherePos.x, 0.01, 0, 5);
+			ImGui::DragFloat3("Sphere Position", &SpherePos.x, 0.01);
 			ImGui::DragFloat("SphereRadius", &SphereRadius, 0.01, 0.1, 3);
 		}
 	}
@@ -447,9 +447,9 @@ void PhysicsInit() {
 	elasticCoef = 0.8;
 	frictCoef = 0.5;
 
-	SpherePos = glm::vec3(0, 3, 0);
-	SphereRadius = 0.5;
-	Sphere::updateSphere(SpherePos,SphereRadius-0.05);
+	SpherePos = glm::vec3(2, 2, 0);
+	SphereRadius = 1.3;
+	Sphere::updateSphere(SpherePos,SphereRadius-0.01);
 
 	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[TheMesh.arrayToUse][0].x);
 	//ClothMesh::updateClothMesh();
@@ -479,7 +479,7 @@ void PhysicsUpdate(float dt) {
 					TheMesh.update(dt / numOfUpdates);
 				}
 			}
-			Sphere::updateSphere(SpherePos, SphereRadius);
+			Sphere::updateSphere(SpherePos, SphereRadius-0.01);
 		}
 	}
 		ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[!TheMesh.arrayToUse][0].x);
