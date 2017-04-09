@@ -81,9 +81,11 @@ public:
 	//constructor, destructor y inicializacion
 	Mesh() {
 		distVertex = 0.5f;
+		structuralDist = distVertex;
 		shearDist = sqrt(pow(distVertex, 2)*2);
 		flexionDist = distVertex * 2;
-		maxDist = distVertex*1.20;
+		maxDistx100 = 20;
+		maxDist = distVertex*(1+(maxDistx100/100));
 
 		heightPos = 8;
 		vertexPosArray= new glm::vec3*[2];
@@ -96,8 +98,8 @@ public:
 		vertexForceArray= new glm::vec3[ClothMesh::numVerts];
 		vertexColisionCheckers = new unsigned char[ClothMesh::numVerts];
 
-		rigidez = 1000;
-		kd = 30;
+		rigidezBend = rigidezShear = rigidezStrench = 1000;
+		kdBend = kdShear = kdStrench = 20;
 		setPosInit();
 		setDistancesCol();
 	}
@@ -132,57 +134,45 @@ public:
 		}
 	}
 	
+
+	void reset() {
+		structuralDist = distVertex;
+		shearDist = sqrt(pow(distVertex, 2) * 2);
+		flexionDist = distVertex * 2;
+		maxDist = distVertex*(1 + (maxDistx100 / 100));
+		setPosInit();
+		setDistancesCol();
+	}
 	//fuerzas
-	inline void addSpringForce(int i0, int i1, float& dist) {
+	inline void addSpringForce(int i0, int i1, float& dist, float& rigidez, float& kd) {
 		newForce= (rigidez*(glm::distance(vertexPosArray[!arrayToUse][i0], vertexPosArray[!arrayToUse][i1]) - dist) + glm::dot(kd*(vertexVelArray[i0] - vertexVelArray[i1]), glm::normalize(vertexPosArray[!arrayToUse][i0] - vertexPosArray[!arrayToUse][i1])))*glm::normalize(vertexPosArray[!arrayToUse][i0] - vertexPosArray[!arrayToUse][i1]);
 		vertexForceArray[i0] -= newForce;
 		vertexForceArray[i1] += newForce;
 	}
 	void addStructuralForces(const int &i) {
-		if (/*i + 1 < ClothMesh::numVerts &&*/ (i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
-			addSpringForce(i, i+1, distVertex);
-		}
-		/*if (i-1>=0 && (i-1)%ClothMesh::numCols!=ClothMesh::numCols-1) {//comprovamos que no haya vuelto atras
-			addSpringForce(i,i-1, distVertex);
-		}*/
+		if ((i+1)%ClothMesh::numCols!=0) {//comprovamos que no pase de fila
+			addSpringForce(i, i+1, structuralDist,rigidezStrench,kdStrench);
+		}	
 		if (i+ClothMesh::numCols<ClothMesh::numVerts) {
-			addSpringForce(i,i+ClothMesh::numCols, distVertex);
+			addSpringForce(i,i+ClothMesh::numCols,structuralDist, rigidezStrench, kdStrench);
 		}
-		/*
-		if (i-ClothMesh::numCols>=0) {
-			addSpringForce(i,i-ClothMesh::numCols, distVertex);
-		}*/
+		
 	}
 	void addShearForces(const int &i) {
 		if (i + ClothMesh::numCols + 1 < ClothMesh::numVerts && (i + ClothMesh::numCols + 1)%ClothMesh::numCols!=0 ) {
-			addSpringForce(i, i+ClothMesh::numCols+1, shearDist);
+			addSpringForce(i, i+ClothMesh::numCols+1, shearDist,rigidezShear,kdShear);
 		}	
 		if (i + ClothMesh::numCols - 1 < ClothMesh::numVerts && (i + ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols-1) {
-			addSpringForce(i,i+ClothMesh::numCols-1, shearDist);
+			addSpringForce(i,i+ClothMesh::numCols-1, shearDist, rigidezShear, kdShear);
 		}
-		/*
-		if (i-ClothMesh::numCols+1>0 && (i - ClothMesh::numCols + 1) % ClothMesh::numCols != 0) {
-			addSpringForce(i,i-ClothMesh::numCols+1, shearDist);
-		}
-		
-		if (i-ClothMesh::numCols-1>=0  && (i - ClothMesh::numCols - 1) % ClothMesh::numCols != ClothMesh::numCols - 1) {
-			addSpringForce(i,i-ClothMesh::numCols-1, shearDist);
-		}*/
 	}
 	void addFlexionForces(const int &i) {
 		if (i+ (ClothMesh::numCols*2)<ClothMesh::numVerts) {
-			addSpringForce(i,i+(ClothMesh::numCols*2), flexionDist);
-		}/*
-		if (i-(ClothMesh::numCols*2)>=0) {
-			addSpringForce(i,i-(ClothMesh::numCols*2), flexionDist);
-		}*/
-		if (/*i+2<ClothMesh::numVerts	&&*/	(i+2)%ClothMesh::numCols!=0 && (i+2)%ClothMesh::numCols!=1) {
-			addSpringForce(i,i+2, flexionDist);
+			addSpringForce(i,i+(ClothMesh::numCols*2), flexionDist,rigidezBend, kdBend);
 		}
-		/*
-		if (i-2>=0 && (i-2)%ClothMesh::numCols!=ClothMesh::numCols-1	&& (i - 2) % ClothMesh::numCols != ClothMesh::numCols - 2) {
-			addSpringForce(i,i-2, flexionDist);
-		}*/
+		if ((i+2)%ClothMesh::numCols!=0 && (i+2)%ClothMesh::numCols!=1) {
+			addSpringForce(i,i+2, flexionDist, rigidezBend, kdBend);
+		}
 	}
 	
 	//solver
@@ -250,7 +240,7 @@ public:
 		//hacemos una recta usando ese vector y calculamos sus colisiones con la esfera
 		sphereA = pow(sphereLast2NewVect.x, 2) + pow(sphereLast2NewVect.y, 2) + pow(sphereLast2NewVect.z, 2);
 		sphereB = 2 * ((sphereLast2NewVect.x*(vertexPosArray[arrayToUse][i].x - SpherePos.x)) + (sphereLast2NewVect.y*(vertexPosArray[arrayToUse][i].y - SpherePos.y)) + (sphereLast2NewVect.z*(vertexPosArray[arrayToUse][i].z - SpherePos.z)));
-		sphereC = pow(SpherePos.x, 2) + pow(SpherePos.y, 2) + pow(SpherePos.z, 2) + pow(vertexPosArray[arrayToUse][i].x, 2) + pow(vertexPosArray[arrayToUse][i].y, 2) + pow(vertexPosArray[arrayToUse][i].z, 2) - 2 * ((SpherePos.x*vertexPosArray[arrayToUse][i].x) + (SpherePos.y*vertexPosArray[arrayToUse][i].y) + (SpherePos.z*vertexPosArray[arrayToUse][i].z) - pow(SphereRadius, 2));
+		sphereC = pow(SpherePos.x, 2) + pow(SpherePos.y, 2) + pow(SpherePos.z, 2) + pow(vertexPosArray[arrayToUse][i].x, 2) + pow(vertexPosArray[arrayToUse][i].y, 2) + pow(vertexPosArray[arrayToUse][i].z, 2) - 2 * ((SpherePos.x*vertexPosArray[arrayToUse][i].x) + (SpherePos.y*vertexPosArray[arrayToUse][i].y) + (SpherePos.z*vertexPosArray[arrayToUse][i].z)) - pow(SphereRadius, 2);
 		sphereLambda = (-sphereB + sqrt(pow(sphereB, 2) - (4 * sphereA*sphereC))) / (2 * sphereA);
 
 		sphereRealColPoint.x = vertexPosArray[arrayToUse][i].x + sphereLambda*sphereLast2NewVect.x;
@@ -264,12 +254,12 @@ public:
 		//hacemos la normal unitaria
 		spherePlaneNormal = glm::normalize(spherePlaneNormal);
 		//calculamos la D del plano de colision
-		spherePlaneD = -spherePlaneNormal.x*sphereRealColPoint.x - spherePlaneNormal.y*sphereRealColPoint.y + spherePlaneNormal.z*sphereRealColPoint.z;
+		//spherePlaneD = -spherePlaneNormal.x*sphereRealColPoint.x - spherePlaneNormal.y*sphereRealColPoint.y - spherePlaneNormal.z*sphereRealColPoint.z;
+		spherePlaneD = -glm::dot(spherePlaneNormal, sphereRealColPoint);
 		mirrorPosition(i, spherePlaneNormal, spherePlaneD);
-		mirrorVelocity(i,spherePlaneNormal);
+		//mirrorVelocity(i,spherePlaneNormal);
 		
 	}
-
 	void sphereColision(int &i) {
 		if (glm::distance(vertexPosArray[arrayToUse][i],SpherePos)-SphereRadius<0) {
 			mirrorSphere(i);
@@ -290,19 +280,18 @@ public:
 	}
 
 	void update(float dt) {
+		
 		glm::vec3 lastPos;
 		for (int i = 1; i < ClothMesh::numVerts;i++) {
 			//vertexForceArray[i] = glm::vec3(0, 0, 0);
 			vertexForceArray[i] = gravity;
 		}
-
+		//caluclo de fuerzas y movimiento
 		for (int i = 0; i < ClothMesh::numVerts;i++) {
 			//fijamos el segundo punto fijo
 				lastPos = vertexPosArray[!arrayToUse][i];
 				//calculamos fuerza
 				#pragma region CalculoFuerza
-					//fuerzas externas
-					//vertexForceArray[i] += gravity;
 					//fuerzas internas
 						//fuerzaStructural
 						addStructuralForces(i);
@@ -320,21 +309,20 @@ public:
 					vertexLastPosArray[i] = lastPos;
 				//usamos solver para calcular velocidad
 					verletVelSolver(i, dt);
+
+					//checkColisions(i);
 				
 		}
 		//aplicamos colisiones
 		for (int i = 1; i < ClothMesh::numVerts;i++) {
 			checkColisions(i);
 		}
-
 		//aplicamos los contrains
 		for (int i =1 ; i < ClothMesh::numVerts;i++) {
 			if (i != ClothMesh::numCols - 1) {
 				checkConstrains(i);
 			}
 		}
-
-
 		//cambiamos los buffers
 		swapBuffers();
 	}
@@ -353,9 +341,12 @@ public:
 
 	//distancias
 	float distVertex;
+	float structuralDist;
 	float shearDist;
 	float flexionDist;
+	float maxDistx100;
 	float maxDist;
+
 
 	//altura original de la malla
 	float heightPos;
@@ -374,47 +365,126 @@ public:
 	float sphereC;
 	float sphereLambda;
 
-	float rigidez;
-	float kd;//resistencia a la velocidad
+	float rigidezStrench;
+	float rigidezShear;
+	float rigidezBend;
+
+	float kdStrench;//resistencia a la velocidad
+	float kdShear;
+	float kdBend;
 };
+
 Mesh TheMesh;
+bool useCamaraLenta=false;
+bool pause=false;
+bool demoMode=false;
+
+float demoModeMaxTime = 3;
+float demoModeTime = 0;
+
+void randomSpherePos() {
+	SpherePos.x = ((float)rand() / RAND_MAX) * 4;
+	SpherePos.y = ((float)rand() / RAND_MAX) * 5;
+	SpherePos.z = ((float)rand() / RAND_MAX) * 8 - 4;
+
+	SphereRadius = ((float)rand() / RAND_MAX)*0.5 + TheMesh.maxDist;
+
+	Sphere::updateSphere(SpherePos, SphereRadius);
+}
 
 void GUI() {
 	{	//FrameRate
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		
+		ImGui::Checkbox("Pause",&pause);
+		if (ImGui::Button("Demo Mode")) {
+			demoMode = !demoMode;
+			TheMesh.reset();
+			randomSpherePos();
+			demoModeTime = 0;
+		}
+		if (!demoMode) {
+			if (ImGui::Button("Manual Reset")) {
+				TheMesh.reset();
+			}
+			ImGui::Checkbox("Camara Lenta", &useCamaraLenta);
+		}
+		else {
+			ImGui::DragFloat("Demo Mode Time",&demoModeMaxTime, 0.1,1,10);
+		}
+		ImGui::DragInt("Num of update Repeats per frame", &numOfUpdates,1, 5,30);
 
-		//TODO
+		ImGui::Text("\n");
+		ImGui::DragFloat("Accepted Elongation %", &TheMesh.maxDistx100, 0.5, 20, 100);
+		ImGui::DragFloat("Initial Distance", &TheMesh.distVertex, 0.01, 0.2, 0.6);
+
+		ImGui::Text("\n");
+		ImGui::DragFloat("Constant Direct-Link springs", &TheMesh.rigidezStrench,10,200,2000);
+		ImGui::DragFloat("Constant Diagonal-Link springs", &TheMesh.rigidezShear, 10, 200, 2000);
+		ImGui::DragFloat("Constant Second-Link springs", &TheMesh.rigidezBend, 10, 200, 2000);
+
+		ImGui::Text("\n");
+		ImGui::DragFloat("Damping Direct-Link springs", &TheMesh.kdStrench, 0.5, 20, 70);
+		ImGui::DragFloat("Damping Diagonal-Link springs", &TheMesh.kdShear, 0.5, 20, 70);
+		ImGui::DragFloat("Damping Second-Link springs", &TheMesh.kdBend, 0.5, 20, 70);
+		if (!demoMode) {
+			ImGui::DragFloat3("Sphere Position", &SpherePos.x, 0.01, 0, 5);
+			ImGui::DragFloat("SphereRadius", &SphereRadius, 0.01, 0.1, 3);
+		}
 	}
 
 	// ImGui test window. Most of the sample code is in ImGui::ShowTestWindow()
 	if(show_test_window) {
 		ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiSetCond_FirstUseEver);
 		ImGui::ShowTestWindow(&show_test_window);
+		
 	}
 }
 
 void PhysicsInit() {
 	numOfUpdates = 10;
 	gravity = glm::vec3(0,-9.81,0);
-	elasticCoef = 0.1;
-	frictCoef = 0.9;
+	elasticCoef = 0.8;
+	frictCoef = 0.5;
 
-	SpherePos = glm::vec3(0, 1, 0);
-	SphereRadius = 1;
+	SpherePos = glm::vec3(0, 3, 0);
+	SphereRadius = 0.5;
+	Sphere::updateSphere(SpherePos,SphereRadius-0.05);
 
 	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[TheMesh.arrayToUse][0].x);
 	//ClothMesh::updateClothMesh();
 }
 void PhysicsUpdate(float dt) {
 	//TODO
-
-	for (int i = 0; i < numOfUpdates;i++) {
-		TheMesh.update(dt/numOfUpdates);
+	if (!pause) {
+		if (demoMode) {
+			if (demoModeTime<=demoModeMaxTime) {
+				for (int i = 0; i < numOfUpdates; i++) {
+					TheMesh.update(dt / numOfUpdates);
+				}
+				demoModeTime += dt;
+			}
+			else {
+				demoModeTime = 0;
+				randomSpherePos();
+				TheMesh.reset();
+			}
+		}
+		else {
+			if (useCamaraLenta) {
+				TheMesh.update(dt / numOfUpdates);
+			}
+			else {
+				for (int i = 0; i < numOfUpdates; i++) {
+					TheMesh.update(dt / numOfUpdates);
+				}
+			}
+			Sphere::updateSphere(SpherePos, SphereRadius);
+		}
 	}
-
-	ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[!TheMesh.arrayToUse][0].x);
-
+		ClothMesh::updateClothMesh(&TheMesh.vertexPosArray[!TheMesh.arrayToUse][0].x);
+	
 }
 void PhysicsCleanup() {
-	//TODO
+	
 }
